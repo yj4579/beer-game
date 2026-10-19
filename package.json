@@ -1,0 +1,6 @@
+{
+  "name": "beer-game",
+  "version": "1.0.0",
+  "scripts": { "start": "node beer-server.js" },
+  "engines": { "node": ">=18" }
+}
