@@ -29,7 +29,11 @@ const G = {
 };
 ROLE_INFO.forEach(r => G.pool[r.key] = r.cap);
 
-function stageRoleCount(){ return ROLE_INFO[G.stage].cap; }
+function stageRoleCount(){
+  let n = 0;
+  for (const t in G.students) if (G.students[t].role === G.stage) n++;
+  return Math.max(1, n);   // 按实际该角色人数等待；无人时由老师强制推进
+}
 function stageSubCount(){
   let n = 0;
   for (const t in G.subs){
@@ -417,18 +421,24 @@ const server = http.createServer((req, res) => {
   };
   if (p === "/teacher") return send(200, TEACHER_PAGE, "text/html");
   if (p === "/join" || p.startsWith("/join/")){
-    // /join 随机分配；/join/retail 等固定入口分配指定角色
+    // 总人数上限 52
+    if (Object.keys(G.students).length >= 52) return send(200, FULL_PAGE, "text/html");
     let role = -1;
     const want = p.split("/")[2];
     if (want){
       role = ROLE_INFO.findIndex(r => r.key === want);
-      if (role >= 0 && G.pool[ROLE_INFO[role].key] <= 0) return send(200, FULL_PAGE, "text/html");
     }
     if (role < 0){
-      const avail = [];
-      ROLE_INFO.forEach((r, i) => { for (let k = 0; k < G.pool[r.key]; k++) avail.push(i); });
-      if (!avail.length) return send(200, FULL_PAGE, "text/html");
-      role = avail[Math.floor(Math.random() * avail.length)];
+      // 随机分配：优先从未满 13 人的角色里随机挑；都满则给人最少的角色
+      const counts = {};
+      ROLE_INFO.forEach(r => counts[r.key] = 0);
+      for (const t in G.students) counts[ROLE_INFO[G.students[t].role].key]++;
+      const notFull = ROLE_INFO.map((r, i) => i).filter(i => counts[ROLE_INFO[i].key] < ROLE_INFO[i].cap);
+      if (notFull.length) role = notFull[Math.floor(Math.random() * notFull.length)];
+      else {
+        let min = Infinity;
+        ROLE_INFO.forEach((r, i) => { if (counts[ROLE_INFO[i].key] < min) { min = counts[ROLE_INFO[i].key]; role = i; } });
+      }
     }
     const key = ROLE_INFO[role].key;
     G.pool[key]--;
